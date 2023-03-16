@@ -43,6 +43,21 @@ def permission_required(permission_needed):
     return decorated_func
 
 
+def validate_schema(schema_name):
+    def decorated_func(func):
+        def wrapper(*args, **kwargs):
+            data = request.get_json()
+            schema = schema_name()
+            errors = schema.validate(data)
+            if not errors:
+                return func(*args, **kwargs)
+            raise BadRequest(errors)
+
+        return wrapper
+
+    return decorated_func
+
+
 @auth.verify_token
 def verify_token(token):
     token_decoded_data = User.decode_token(token)
@@ -171,17 +186,14 @@ class SingleClothSchemaOut(SingleClothSchemaBase):
 
 
 class UserRegisterResource(Resource):
+    @validate_schema(UserSignInSchema)
     def post(self):
         data = request.get_json()
-        schema = UserSignInSchema()
-        errors = schema.validate(data)
-        if not errors:
-            data["password"] = generate_password_hash(data['password'], method='sha256')
-            user = User(**data)
-            db.session.add(user)
-            db.session.commit()
-            return {"token": user.encode_token()}
-        return errors
+        data["password"] = generate_password_hash(data['password'], method='sha256')
+        user = User(**data)
+        db.session.add(user)
+        db.session.commit()
+        return {"token": user.encode_token()}
 
 
 class ClothesResource(Resource):
